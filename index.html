@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Booth</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #000;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      cursor: none;
+    }
+
+    #bg-img {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      max-width: 100vw;
+      max-height: 100vh;
+      width: auto;
+      height: auto;
+      display: block;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    #camera-overlay {
+      position: fixed;
+      overflow: hidden;
+    }
+
+    /* 사진 스트립 — bg.png strip 위에 오버레이 */
+    #photo-strip {
+      position: fixed;
+      display: flex;
+      align-items: center;
+      padding: 4px 6px;
+      gap: 4px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      background: transparent;
+      pointer-events: none;
+    }
+    #photo-strip::-webkit-scrollbar { display: none; }
+
+    .strip-thumb {
+      height: 100%;
+      width: auto;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 3px;
+      flex-shrink: 0;
+      cursor: pointer;
+      pointer-events: auto;
+      border: 1.5px solid transparent;
+      transition: border-color 0.15s;
+    }
+    .strip-thumb:hover { border-color: rgba(255,255,255,0.55); }
+
+    /* 캡처 버튼 — bg.png 버튼 위 투명 클릭 영역 */
+    #capture-btn {
+      position: fixed;
+      border-radius: 50%;
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      pointer-events: auto;
+    }
+    #capture-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      transition: background 0.1s;
+    }
+    #capture-btn:hover::after  { background: rgba(255,255,255,0.08); }
+    #capture-btn:active::after { background: rgba(0,0,0,0.18); }
+
+    /* 손 인식 토글 */
+    #hand-toggle {
+      position: fixed;
+      right: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 7px;
+      background: rgba(0,0,0,0.45);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 14px;
+      padding: 12px 10px;
+      cursor: pointer;
+      color: rgba(255,255,255,0.4);
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.02em;
+      backdrop-filter: blur(10px);
+      transition: all 0.2s;
+      z-index: 200;
+    }
+    #hand-toggle.on {
+      border-color: rgba(100,210,255,0.55);
+      color: rgba(100,210,255,0.9);
+      background: rgba(100,210,255,0.1);
+    }
+    #hand-toggle svg { width: 18px; height: 18px; fill: currentColor; }
+    #hand-toggle .pill {
+      width: 28px; height: 16px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.15);
+      position: relative;
+      transition: background 0.2s;
+    }
+    #hand-toggle.on .pill { background: rgba(100,210,255,0.7); }
+    #hand-toggle .knob {
+      position: absolute;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: white;
+      top: 2px; left: 2px;
+      transition: left 0.2s;
+    }
+    #hand-toggle.on .knob { left: 14px; }
+  </style>
+</head>
+<body>
+  <img id="bg-img" src="bg.png" alt="">
+  <div id="camera-overlay"></div>
+  <div id="photo-strip"></div>
+  <button id="capture-btn" title="촬영"></button>
+
+  <button id="hand-toggle" title="손 인식 켜기/끄기">
+    <svg viewBox="0 0 24 24">
+      <path d="M21 7c0-1.1-.9-2-2-2h-2V3c0-1.1-.9-2-2-2s-2 .9-2 2v5.17A3 3 0 0 0 11 11v4a6 6 0 0 0 6 6h1a6 6 0 0 0 6-6V9c0-1.1-.9-2-2-2zM8 3c0-1.1-.9-2-2-2S4 1.9 4 3v8.29A4 4 0 0 0 3 14v1a8 8 0 0 0 8 8h1v-2h-1a6 6 0 0 1-6-6v-1c0-.74.4-1.39 1-1.73V3z"/>
+    </svg>
+    <div class="pill"><div class="knob"></div></div>
+    <span>손 인식</span>
+  </button>
+
+  <script>
+    // bg.png 실제 픽셀 좌표 (3789×2916, Python 정밀 측정)
+    const IMG_W = 3789, IMG_H = 2916;
+    const CAM   = { x1: 176, y1: 214,  x2: 3613, y2: 2328 };
+    const STRIP = { x1: 168, y1: 2330, x2: 3620, y2: 2512 };
+    const BTN   = { cx: 1894, cy: 2600, r: 75 }; // r = 반지름 (image px)
+
+    function getLayout() {
+      const vpW   = window.innerWidth;
+      const vpH   = window.innerHeight;
+      const scale = Math.min(vpW / IMG_W, vpH / IMG_H);
+      const offX  = (vpW - IMG_W * scale) / 2;
+      const offY  = (vpH - IMG_H * scale) / 2;
+      return { scale, offX, offY };
+    }
+
+    function updateLayout() {
+      const { scale, offX, offY } = getLayout();
+      const PAD = 2; // 서브픽셀 누출 방지 (CSS px)
+
+      // 카메라 오버레이: floor/ceil + padding으로 빨간 테두리 제거
+      const cam = document.getElementById('camera-overlay');
+      cam.style.left   = Math.floor(offX + CAM.x1 * scale) - PAD + 'px';
+      cam.style.top    = Math.floor(offY + CAM.y1 * scale) - PAD + 'px';
+      cam.style.width  = Math.ceil((CAM.x2 - CAM.x1) * scale) + PAD * 2 + 'px';
+      cam.style.height = Math.ceil((CAM.y2 - CAM.y1) * scale) + PAD * 2 + 'px';
+
+      // 사진 스트립
+      const strip = document.getElementById('photo-strip');
+      strip.style.left   = Math.floor(offX + STRIP.x1 * scale) + 'px';
+      strip.style.top    = Math.floor(offY + STRIP.y1 * scale) + 'px';
+      strip.style.width  = Math.ceil((STRIP.x2 - STRIP.x1) * scale) + 'px';
+      strip.style.height = Math.ceil((STRIP.y2 - STRIP.y1) * scale) + 'px';
+
+      // 캡처 버튼: bg.png 버튼과 동일한 위치·크기
+      const btnR = Math.ceil(BTN.r * scale);
+      const btn  = document.getElementById('capture-btn');
+      btn.style.left   = Math.round(offX + BTN.cx * scale) - btnR + 'px';
+      btn.style.top    = Math.round(offY + BTN.cy * scale) - btnR + 'px';
+      btn.style.width  = btnR * 2 + 'px';
+      btn.style.height = btnR * 2 + 'px';
+    }
+
+    updateLayout();
+    window.addEventListener('resize', updateLayout);
+
+    // 손 인식 토글
+    document.getElementById('hand-toggle').addEventListener('click', function () {
+      window.handTrackingEnabled = !window.handTrackingEnabled;
+      this.classList.toggle('on', window.handTrackingEnabled);
+    });
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+  <script src="sketch.js"></script>
+</body>
+</html>
