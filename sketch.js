@@ -151,15 +151,20 @@ function draw() {
 }
 
 function drawLoading() {
-  const msg = 'AI 모델 로딩 중…';
+  const lines = ['서리 준비중...', '조금만 기다려주세요.', '이 문구가 사라지면 시작할 수 있어요.'];
   textSize(13);
   textAlign(CENTER, CENTER);
-  const tw = textWidth(msg) + 24;
+  const lineH = 20;
+  const pad = 16;
+  const boxH = lines.length * lineH + pad;
+  const boxW = 260;
   fill(0, 0, 0, 120);
   noStroke();
-  rect(width / 2 - tw / 2, height / 2 - 16, tw, 30, 6);
+  rect(width / 2 - boxW / 2, height / 2 - boxH / 2, boxW, boxH, 8);
   fill(255, 255, 255, 160);
-  text(msg, width / 2, height / 2);
+  for (let i = 0; i < lines.length; i++) {
+    text(lines[i], width / 2, height / 2 - (lines.length - 1) * lineH / 2 + i * lineH);
+  }
   textAlign(LEFT, BASELINE);
 }
 
