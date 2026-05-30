@@ -145,6 +145,22 @@ function draw() {
 
   // 6. 커서
   drawCursor();
+
+  // 7. 로딩 표시 (얼굴 인식 모델 다운로드 전)
+  if (!faceDetected) drawLoading();
+}
+
+function drawLoading() {
+  const msg = 'AI 모델 로딩 중…';
+  textSize(13);
+  textAlign(CENTER, CENTER);
+  const tw = textWidth(msg) + 24;
+  fill(0, 0, 0, 120);
+  noStroke();
+  rect(width / 2 - tw / 2, height / 2 - 16, tw, 30, 6);
+  fill(255, 255, 255, 160);
+  text(msg, width / 2, height / 2);
+  textAlign(LEFT, BASELINE);
 }
 
 function windowResized() {
