@@ -160,10 +160,11 @@ function drawLoading() {
   const boxW = 260;
   fill(0, 0, 0, 120);
   noStroke();
-  rect(width / 2 - boxW / 2, height / 2 - boxH / 2, boxW, boxH, 8);
+  const boxY = height - boxH - 24;
+  rect(width / 2 - boxW / 2, boxY, boxW, boxH, 8);
   fill(255, 255, 255, 160);
   for (let i = 0; i < lines.length; i++) {
-    text(lines[i], width / 2, height / 2 - (lines.length - 1) * lineH / 2 + i * lineH);
+    text(lines[i], width / 2, boxY + pad / 2 + i * lineH + lineH / 2);
   }
   textAlign(LEFT, BASELINE);
 }
